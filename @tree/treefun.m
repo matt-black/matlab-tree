@@ -1,5 +1,5 @@
 function varargout = treefun ( obj, varargin )
-% TREEFUN Apply a function to each node of the tree.
+%% TREEFUN Apply a function to each node of the tree.
 %   A = TREEFUN(OBJ,FUN) applies the function specified by FUN to
 %   the contents of each node in the tree, OBJ.   
 %   [A, B, ...] = TREEFUN(OBJ,FUN) where FUN is a function handle to a
@@ -16,18 +16,26 @@ function varargout = treefun ( obj, varargin )
 %
 %   See also TREEFUN2
 
-    fun = varargin{end};                % the last arg must be the function
-    if ~isa(fun, 'function_handle')
-        % TODO: allow string args (str2func)
-        error('MATLAB:tree:treefunN', ...
-              'Last argument must be a function handle. Got a %s.', ...
-              class(fun));
+    narginchk(2,Inf);                   % need at least 2 arguments (OBJ & FUN)
+    fun = varargin{end};
+    assert(isa(fun,'function_handle'), 'MATLAB:tree:treefun', ...
+           'Last argument must be a function handle. Got a %s.', ...
+           class(fun));
+    try, fun_argin = nargin(fun);       % only throws if function doesn't exist
+    catch, error('MATLAB:tree:treefun', ...
+                 'Function %s does not exist.',func2str(f));
     end
-
-    % validate number of output arguments is <= # outputs of `fun`
-    nargoutchk(0,abs(nargout(fun)));
     
+    % validate number of input arguments is <= # inputs of FUN
+    assert(nargin-1<=abs(fun_argin), 'MATLAB:tree:treefun', ...
+           'FUN expects at most %d arguments, but you passed %d.', ...
+           abs(fun_argin), nargin-1);
+
+    % validate number of output arguments is <= # outputs of FUN
+    nargoutchk(0,abs(nargout(fun)));
+
     % if called interactively, nargout=0, which causes problems in `cellfun`
+    % call, below
     % given: 
     % >> t
     % t = ...
@@ -45,7 +53,7 @@ function varargout = treefun ( obj, varargin )
     else
         n_out = nargout;
     end
-    
+
     function nodes = getNodes (val, N)
     % GETNODES collects the nodes from the `val` input and returns them. If
     % `val` is not a tree, does scalar expansion. Also checks that `val` is
@@ -54,14 +62,13 @@ function varargout = treefun ( obj, varargin )
         if ~isa(val,'tree')             % do scalar expansion
             nodes = tree(obj,val).Node;
         else
-            if ~issync(obj,val) 
-                error('MATLAB:tree:treefun', ...
-                      ['All tree arguments must be synchronized with the first ' ...
-                       'argument. The %dth argument was not.'], N);
-            end
+            assert(issync(obj,val), 'MATLAB:tree:treefun', ...
+                   ['All tree arguments must be synchronized with the first. ' ...
+                    'The %d argument was not.'], N);
             nodes = val.Node;
         end
     end
+
     nodes = cellfun(@getNodes, varargin(1:end-1), num2cell(2:nargin-1), ... 
                     'UniformOutput', false);
     nodes = horzcat({obj.Node},nodes);
@@ -70,4 +77,5 @@ function varargout = treefun ( obj, varargin )
         varargout{k} = tree(obj,'clear');
         varargout{k}.Node = content{k};
     end
+
 end
